@@ -1,0 +1,3 @@
+01-java7-compatibility.patch
+02-disable-beastax-driver.patch
+no-mxparser.patch

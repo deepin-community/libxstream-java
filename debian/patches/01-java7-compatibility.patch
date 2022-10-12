@@ -1,0 +1,36 @@
+From: Emmanuel Bourg <ebourg@apache.org>
+Date: Fri, 27 Aug 2021 16:26:02 +0200
+Subject: Replaces the call to Method.isDefault() by a reflexive call to
+ compile with Java 7
+
+Forwarded: not-needed
+---
+ .../src/java/com/thoughtworks/xstream/mapper/LambdaMapper.java | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/xstream/src/java/com/thoughtworks/xstream/mapper/LambdaMapper.java b/xstream/src/java/com/thoughtworks/xstream/mapper/LambdaMapper.java
+index 6416105..15c02bb 100644
+--- a/xstream/src/java/com/thoughtworks/xstream/mapper/LambdaMapper.java
++++ b/xstream/src/java/com/thoughtworks/xstream/mapper/LambdaMapper.java
+@@ -42,7 +42,7 @@ public class LambdaMapper extends MapperWrapper {
+                     for (int i = 0; replacement == null && i < interfaces.length; i++) {
+                         final Class<?> iface = interfaces[i];
+                         for (final Method method : iface.getMethods()) {
+-                            if (!method.isDefault() && !Modifier.isStatic(method.getModifiers())) {
++                            if (!isDefault(method) && !Modifier.isStatic(method.getModifiers())) {
+                                 replacement = iface;
+                                 break;
+                             }
+@@ -57,4 +57,12 @@ public class LambdaMapper extends MapperWrapper {
+         }
+         return super.serializedClass(replacement == null ? type : replacement);
+     }
++
++    private boolean isDefault(Method m) {
++        try {
++            return (Boolean) Method.class.getMethod("isDefault").invoke(m);
++        } catch (Exception e) {
++            return false;
++        }
++    }
+ }

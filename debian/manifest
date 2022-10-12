@@ -1,0 +1,2 @@
+usr/share/java/xstream.jar:
+ Class-Path: cglib-nodep.jar dom4j.jar jdom1.jar jdom2.jar jettison.jar joda-time.jar xom.jar xpp3.jar xpp3-xpath.jar

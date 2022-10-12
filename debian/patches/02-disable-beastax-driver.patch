@@ -1,0 +1,40 @@
+From: Emmanuel Bourg <ebourg@apache.org>
+Date: Fri, 27 Aug 2021 16:26:02 +0200
+Subject: Removes the dependency on the com.bea.xml.stream package (not
+ needed, allows us to drop the StAX dependency)
+
+Forwarded: not-needed
+---
+ .../com/thoughtworks/xstream/io/xml/BEAStaxDriver.java     | 14 --------------
+ 1 file changed, 14 deletions(-)
+
+diff --git a/xstream/src/java/com/thoughtworks/xstream/io/xml/BEAStaxDriver.java b/xstream/src/java/com/thoughtworks/xstream/io/xml/BEAStaxDriver.java
+index a4c30d1..9b2b17c 100644
+--- a/xstream/src/java/com/thoughtworks/xstream/io/xml/BEAStaxDriver.java
++++ b/xstream/src/java/com/thoughtworks/xstream/io/xml/BEAStaxDriver.java
+@@ -10,8 +10,6 @@
+  */
+ package com.thoughtworks.xstream.io.xml;
+ 
+-import com.bea.xml.stream.MXParserFactory;
+-import com.bea.xml.stream.XMLOutputFactoryBase;
+ import com.thoughtworks.xstream.io.naming.NameCoder;
+ 
+ import javax.xml.stream.XMLInputFactory;
+@@ -71,16 +69,4 @@ public class BEAStaxDriver extends StaxDriver {
+         super(nameCoder);
+     }
+ 
+-    protected XMLInputFactory createInputFactory() {
+-        final XMLInputFactory instance = new MXParserFactory();
+-        instance.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, Boolean.FALSE);
+-//        if (instance.isPropertySupported(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES))
+-//            throw new IllegalStateException("Should not support external entities now!");
+-        return instance;
+-    }
+-
+-    protected XMLOutputFactory createOutputFactory() {
+-        return new XMLOutputFactoryBase();
+-    }
+-
+ }

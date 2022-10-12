@@ -1,0 +1,1995 @@
+From: Markus Koschany <apo@debian.org>
+Date: Fri, 27 Aug 2021 16:37:25 +0200
+Subject: no mxparser
+
+---
+ .../benchmark/jmh/ConverterTypeBenchmark.java      | 288 ---------------
+ .../xstream/benchmark/jmh/ParserBenchmark.java     | 387 --------------------
+ .../benchmark/jmh/StringConverterBenchmark.java    | 334 -----------------
+ .../xstream/io/xml/MXParserDomDriver.java          |  53 ---
+ .../xstream/io/xml/MXParserDriver.java             |  55 ---
+ .../acceptance/MultipleObjectsInOneStreamTest.java | 397 ---------------------
+ .../xstream/io/DriverEndToEndTestSuite.java        | 187 ----------
+ .../xstream/io/binary/BinaryStreamTest.java        |  92 -----
+ .../io/copy/HierarchicalStreamCopierTest.java      |  74 ----
+ .../xstream/io/xml/MXParserReaderTest.java         |  41 ---
+ 10 files changed, 1908 deletions(-)
+ delete mode 100644 xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/ConverterTypeBenchmark.java
+ delete mode 100644 xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/ParserBenchmark.java
+ delete mode 100644 xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/StringConverterBenchmark.java
+ delete mode 100644 xstream/src/java/com/thoughtworks/xstream/io/xml/MXParserDomDriver.java
+ delete mode 100644 xstream/src/java/com/thoughtworks/xstream/io/xml/MXParserDriver.java
+ delete mode 100644 xstream/src/test/com/thoughtworks/acceptance/MultipleObjectsInOneStreamTest.java
+ delete mode 100644 xstream/src/test/com/thoughtworks/xstream/io/DriverEndToEndTestSuite.java
+ delete mode 100644 xstream/src/test/com/thoughtworks/xstream/io/binary/BinaryStreamTest.java
+ delete mode 100644 xstream/src/test/com/thoughtworks/xstream/io/copy/HierarchicalStreamCopierTest.java
+ delete mode 100644 xstream/src/test/com/thoughtworks/xstream/io/xml/MXParserReaderTest.java
+
+diff --git a/xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/ConverterTypeBenchmark.java b/xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/ConverterTypeBenchmark.java
+deleted file mode 100644
+index 8b01de1..0000000
+--- a/xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/ConverterTypeBenchmark.java
++++ /dev/null
+@@ -1,288 +0,0 @@
+-/*
+- * Copyright (C) 2015, 2017, 2021 XStream Committers.
+- * All rights reserved.
+- *
+- * The software in this package is published under the terms of the BSD
+- * style license a copy of which has been included with this distribution in
+- * the LICENSE.txt file.
+- *
+- * Created on 20 November 2015 by Joerg Schaible
+- */
+-package com.thoughtworks.xstream.benchmark.jmh;
+-
+-import java.math.BigInteger;
+-import java.util.UUID;
+-import java.util.concurrent.TimeUnit;
+-
+-import org.openjdk.jmh.annotations.Benchmark;
+-import org.openjdk.jmh.annotations.BenchmarkMode;
+-import org.openjdk.jmh.annotations.Fork;
+-import org.openjdk.jmh.annotations.Level;
+-import org.openjdk.jmh.annotations.Measurement;
+-import org.openjdk.jmh.annotations.Mode;
+-import org.openjdk.jmh.annotations.OutputTimeUnit;
+-import org.openjdk.jmh.annotations.Scope;
+-import org.openjdk.jmh.annotations.Setup;
+-import org.openjdk.jmh.annotations.State;
+-import org.openjdk.jmh.annotations.Threads;
+-import org.openjdk.jmh.annotations.Warmup;
+-import org.openjdk.jmh.infra.BenchmarkParams;
+-
+-import com.thoughtworks.xstream.XStream;
+-import com.thoughtworks.xstream.converters.ConversionException;
+-import com.thoughtworks.xstream.converters.Converter;
+-import com.thoughtworks.xstream.converters.MarshallingContext;
+-import com.thoughtworks.xstream.converters.UnmarshallingContext;
+-import com.thoughtworks.xstream.converters.javabean.JavaBeanConverter;
+-import com.thoughtworks.xstream.converters.reflection.ReflectionConverter;
+-import com.thoughtworks.xstream.io.HierarchicalStreamReader;
+-import com.thoughtworks.xstream.io.HierarchicalStreamWriter;
+-import com.thoughtworks.xstream.io.xml.MXParserDriver;
+-import com.thoughtworks.xstream.security.ArrayTypePermission;
+-import com.thoughtworks.xstream.security.NoTypePermission;
+-import com.thoughtworks.xstream.security.PrimitiveTypePermission;
+-
+-
+-/**
+- * Benchmark for the different converter types.
+- *
+- * @author J&ouml;rg Schaible
+- * @since 1.4.9
+- */
+-@BenchmarkMode(Mode.AverageTime)
+-@Fork(value = 1)
+-@Measurement(iterations = 16)
+-@OutputTimeUnit(TimeUnit.NANOSECONDS)
+-@State(Scope.Benchmark)
+-@Threads(4)
+-@Warmup(iterations = 5)
+-public class ConverterTypeBenchmark {
+-
+-    private XStream xstream;
+-    private Model array[];
+-    private String xml;
+-
+-    @SuppressWarnings("javadoc")
+-    public static class Model {
+-        private char ch;
+-        private int i;
+-        private String s;
+-        private double d;
+-        private float f;
+-        private BigInteger bi;
+-        private UUID uuid;
+-
+-        public Model() {
+-            ch = 0;
+-            i = 0;
+-            d = 0.0;
+-            f = 0.0f;
+-        }
+-
+-        public Model(final int i) {
+-            ch = (char)(i % 256);
+-            this.i = i;
+-            s = Integer.toString(i, 2);
+-            d = Math.PI * i;
+-            f = (float)(Math.E * i);
+-            bi = new BigInteger(s, 2);
+-            uuid = UUID.randomUUID();
+-        }
+-
+-        public char getCh() {
+-            return ch;
+-        }
+-
+-        public void setCh(final char ch) {
+-            this.ch = ch;
+-        }
+-
+-        public int getI() {
+-            return i;
+-        }
+-
+-        public void setI(final int i) {
+-            this.i = i;
+-        }
+-
+-        public String getS() {
+-            return s;
+-        }
+-
+-        public void setS(final String s) {
+-            this.s = s;
+-        }
+-
+-        public Double getD() {
+-            return d;
+-        }
+-
+-        public void setD(final Double d) {
+-            this.d = d;
+-        }
+-
+-        public Float getF() {
+-            return f;
+-        }
+-
+-        public void setF(final Float f) {
+-            this.f = f;
+-        }
+-
+-        public BigInteger getBi() {
+-            return bi;
+-        }
+-
+-        public void setBi(final BigInteger bi) {
+-            this.bi = bi;
+-        }
+-
+-        public UUID getUuid() {
+-            return uuid;
+-        }
+-
+-        public void setUuid(final UUID uuid) {
+-            this.uuid = uuid;
+-        }
+-    }
+-
+-    /**
+-     * Converter for a Model.
+-     *
+-     * @since 1.4.9
+-     */
+-    public static final class ModelConverter implements Converter {
+-
+-        public boolean canConvert(@SuppressWarnings("rawtypes") final Class type) {
+-            return type == Model.class;
+-        }
+-
+-        public void marshal(final Object source, final HierarchicalStreamWriter writer,
+-                final MarshallingContext context) {
+-            final Model type = Model.class.cast(source);
+-            writeElement(writer, "ch", String.valueOf(type.getCh()));
+-            writeElement(writer, "i", String.valueOf(type.getI()));
+-            writeElement(writer, "s", type.getS());
+-            writeElement(writer, "d", String.valueOf(type.getD()));
+-            writeElement(writer, "f", String.valueOf(type.getF()));
+-            writeElement(writer, "bi", type.getBi().toString());
+-            writeElement(writer, "uuid", type.getUuid().toString());
+-        }
+-
+-        private void writeElement(final HierarchicalStreamWriter writer, final String name, final String value) {
+-            writer.startNode(name);
+-            writer.setValue(value);
+-            writer.endNode();
+-        }
+-
+-        public Object unmarshal(final HierarchicalStreamReader reader, final UnmarshallingContext context) {
+-            final Model type = new Model();
+-            while (reader.hasMoreChildren()) {
+-                reader.moveDown();
+-                final String value = reader.getValue();
+-                final String name = reader.getNodeName();
+-                if (name.equals("ch")) {
+-                    if (value.length() != 1) {
+-                        throw new ConversionException("Not a single character");
+-                    }
+-                    type.setCh(value.charAt(0));
+-                } else if (name.equals("i")) {
+-                    type.setI(Integer.parseInt(value));
+-                } else if (name.equals("s")) {
+-                    type.setS(value);
+-                } else if (name.equals("d")) {
+-                    type.setD(Double.parseDouble(value));
+-                } else if (name.equals("f")) {
+-                    type.setF(Float.parseFloat(value));
+-                } else if (name.equals("bi")) {
+-                    type.setBi(new BigInteger(value));
+-                } else if (name.equals("uuid")) {
+-                    type.setUuid(UUID.fromString(value));
+-                } else {
+-                    throw new ConversionException("Unkown element");
+-                }
+-                reader.moveUp();
+-            }
+-
+-            return type;
+-        }
+-
+-    }
+-
+-    /**
+-     * Initialize the XML string to deserialize.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Setup
+-    public void init() {
+-        array = new Model[1000];
+-        for (int i = 0; i < array.length; ++i) {
+-            array[i] = new Model(i);
+-        }
+-    }
+-
+-    /**
+-     * Setup the data to deserialize.
+-     *
+-     * @param params the parameters of the benchmark
+-     * @since 1.4.9
+-     */
+-    @Setup(Level.Trial)
+-    public void setUp(final BenchmarkParams params) {
+-        xstream = new XStream(new MXParserDriver());
+-        xstream.addPermission(NoTypePermission.NONE);
+-        xstream.addPermission(ArrayTypePermission.ARRAYS);
+-        xstream.addPermission(PrimitiveTypePermission.PRIMITIVES);
+-        xstream.allowTypes(new Class[]{Model.class, String.class, BigInteger.class, UUID.class});
+-        final String benchmark = params.getBenchmark();
+-        final String name = benchmark.substring(ConverterTypeBenchmark.class.getName().length() + 1);
+-        if (name.equals("reflection")) {
+-            xstream.registerConverter(new ReflectionConverter(xstream.getMapper(), xstream.getReflectionProvider(),
+-                Model.class));
+-        } else if (name.equals("javaBean")) {
+-            xstream.registerConverter(new JavaBeanConverter(xstream.getMapper(), Model.class));
+-        } else if (name.equals("custom")) {
+-            xstream.registerConverter(new ModelConverter());
+-        } else {
+-            throw new IllegalStateException("Unsupported benchmark type: " + benchmark);
+-        }
+-        xml = xstream.toXML(array);
+-        // System.out.println(xstream.toXML(array[0]));
+-    }
+-
+-    /**
+-     * Use ReflectionConverter.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void reflection() {
+-        run();
+-    }
+-
+-    /**
+-     * Use JavaBeanConverter.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void javaBean() {
+-        run();
+-    }
+-
+-    /**
+-     * Use custom converter.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void custom() {
+-        run();
+-    }
+-
+-    private void run() {
+-        final Object o = xstream.fromXML(xml);
+-        assert xstream.toXML(o).equals(xml) : "XML differs";
+-    }
+-}
+diff --git a/xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/ParserBenchmark.java b/xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/ParserBenchmark.java
+deleted file mode 100644
+index b2f83bd..0000000
+--- a/xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/ParserBenchmark.java
++++ /dev/null
+@@ -1,387 +0,0 @@
+-/*
+- * Copyright (C) 2015, 2017, 2021 XStream Committers.
+- * All rights reserved.
+- *
+- * The software in this package is published under the terms of the BSD
+- * style license a copy of which has been included with this distribution in
+- * the LICENSE.txt file.
+- *
+- * Created on 25. October 2015 by Joerg Schaible
+- */
+-package com.thoughtworks.xstream.benchmark.jmh;
+-
+-import java.io.ByteArrayInputStream;
+-import java.io.ByteArrayOutputStream;
+-import java.io.Writer;
+-import java.util.ArrayList;
+-import java.util.Arrays;
+-import java.util.List;
+-import java.util.concurrent.TimeUnit;
+-
+-import org.openjdk.jmh.annotations.Benchmark;
+-import org.openjdk.jmh.annotations.BenchmarkMode;
+-import org.openjdk.jmh.annotations.Fork;
+-import org.openjdk.jmh.annotations.Level;
+-import org.openjdk.jmh.annotations.Measurement;
+-import org.openjdk.jmh.annotations.Mode;
+-import org.openjdk.jmh.annotations.OutputTimeUnit;
+-import org.openjdk.jmh.annotations.Param;
+-import org.openjdk.jmh.annotations.Scope;
+-import org.openjdk.jmh.annotations.Setup;
+-import org.openjdk.jmh.annotations.State;
+-import org.openjdk.jmh.annotations.Threads;
+-import org.openjdk.jmh.annotations.Warmup;
+-import org.openjdk.jmh.infra.BenchmarkParams;
+-
+-import com.thoughtworks.xstream.XStream;
+-import com.thoughtworks.xstream.io.HierarchicalStreamDriver;
+-import com.thoughtworks.xstream.io.HierarchicalStreamWriter;
+-import com.thoughtworks.xstream.io.binary.BinaryStreamDriver;
+-import com.thoughtworks.xstream.io.json.JettisonMappedXmlDriver;
+-import com.thoughtworks.xstream.io.xml.BEAStaxDriver;
+-import com.thoughtworks.xstream.io.xml.Dom4JDriver;
+-import com.thoughtworks.xstream.io.xml.DomDriver;
+-import com.thoughtworks.xstream.io.xml.JDom2Driver;
+-import com.thoughtworks.xstream.io.xml.JDomDriver;
+-import com.thoughtworks.xstream.io.xml.KXml2Driver;
+-import com.thoughtworks.xstream.io.xml.MXParserDriver;
+-import com.thoughtworks.xstream.io.xml.PrettyPrintWriter;
+-import com.thoughtworks.xstream.io.xml.StandardStaxDriver;
+-import com.thoughtworks.xstream.io.xml.WstxDriver;
+-import com.thoughtworks.xstream.io.xml.XomDriver;
+-import com.thoughtworks.xstream.io.xml.Xpp3Driver;
+-import com.thoughtworks.xstream.security.ArrayTypePermission;
+-import com.thoughtworks.xstream.security.NoTypePermission;
+-import com.thoughtworks.xstream.security.PrimitiveTypePermission;
+-
+-
+-/**
+- * Benchmark for the different {@link HierarchicalStreamDriver} implementations.
+- *
+- * @author J&ouml;rg Schaible
+- * @since 1.4.9
+- */
+-@BenchmarkMode(Mode.AverageTime)
+-@Fork(value = 1)
+-@Measurement(iterations = 15)
+-@OutputTimeUnit(TimeUnit.NANOSECONDS)
+-@State(Scope.Benchmark)
+-@Threads(1)
+-@Warmup(iterations = 5)
+-public class ParserBenchmark {
+-
+-    /**
+-     * Driver factory. Enum values used as parameter for the parser benchmark methods.
+-     *
+-     * @author J&ouml;rg Schaible
+-     * @since 1.4.9
+-     */
+-    public enum DriverFactory {
+-        /**
+-         * Factory for the {@link MXParserDriver}.
+-         *
+-         * @since 1.4.16
+-         */
+-        MXParser(new MXParserDriver()), //
+-        /**
+-         * Factory for the {@link Xpp3Driver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        Xpp3(new Xpp3Driver()), //
+-        /**
+-         * Factory for the {@link KXml2Driver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        kXML2(new KXml2Driver()), //
+-        /**
+-         * Factory for the {@link StandardStaxDriver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        JDKStax(new StandardStaxDriver()), //
+-        /**
+-         * Factory for the {@link WstxDriver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        Woodstox(new WstxDriver()), //
+-        /**
+-         * Factory for the {@link BEAStaxDriver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        BEAStax(new BEAStaxDriver()), //
+-        /**
+-         * Factory for the {@link DomDriver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        DOM(new DomDriver()), //
+-        /**
+-         * Factory for the {@link Dom4JDriver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        DOM4J(new Dom4JDriver() { // XML writer of DOM4J fails
+-            @Override
+-            public HierarchicalStreamWriter createWriter(final Writer out) {
+-                return new PrettyPrintWriter(out, getNameCoder());
+-            }
+-        }), //
+-        /**
+-         * Factory for the {@link JDomDriver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        JDom(new JDomDriver()), //
+-        /**
+-         * Factory for the {@link JDom2Driver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        JDom2(new JDom2Driver()), //
+-        /**
+-         * Factory for the {@link XomDriver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        Xom(new XomDriver()), //
+-        /**
+-         * Factory for the {@link BinaryStreamDriver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        Binary(new BinaryStreamDriver()), //
+-        /**
+-         * Factory for the {@link JettisonMappedXmlDriver}.
+-         *
+-         * @since 1.4.9
+-         */
+-        Jettison(new JettisonMappedXmlDriver());
+-
+-        private final HierarchicalStreamDriver driver;
+-
+-        private DriverFactory(final HierarchicalStreamDriver driver) {
+-            this.driver = driver;
+-        }
+-
+-        /**
+-         * Request the driver of the instantiated factory.
+-         *
+-         * @return the driver
+-         * @since 1.4.9
+-         */
+-        public HierarchicalStreamDriver getDriver() {
+-            return driver;
+-        }
+-    }
+-
+-    /**
+-     * Data factory. Enum values used as data generator and checker for the individual parser benchmark methods. Method
+-     * names define the data factory to use for the benchmark.
+-     *
+-     * @author J&ouml;rg Schaible
+-     * @since 1.4.9
+-     */
+-    public enum DataFactory {
+-        /**
+-         * A single element with a text of 100.000 characters.
+-         *
+-         * @author J&ouml;rg Schaible
+-         * @since 1.4.9
+-         */
+-        BigText {
+-            private int length;
+-            private String start;
+-            private String end;
+-
+-            @Override
+-            public void writeData(final HierarchicalStreamWriter writer) {
+-                int length = 100000;
+-                final StringBuilder builder = new StringBuilder(length);
+-                int i = 0;
+-                while (length > 0) {
+-                    final int codePoint = i % Character.MAX_CODE_POINT;
+-                    if (Character.isLetterOrDigit(codePoint)) {
+-                        builder.appendCodePoint(codePoint);
+-                        --length;
+-                    }
+-                    ++i;
+-                }
+-                final String s = builder.toString();
+-                this.length = s.length();
+-                start = s.substring(0, 100);
+-                end = s.substring(this.length - 100);
+-
+-                writer.startNode("string");
+-                writer.setValue(s);
+-                writer.endNode();
+-            }
+-
+-            @Override
+-            public void checkData(final Object o) {
+-                final String s = String.class.cast(o);
+-                assert length == s.length() : BigText + " fails length";
+-                assert start.equals(s.substring(0, 100)) : BigText + " fails start";
+-                assert end.equals(s.substring(length - 100)) : BigText + " fails end";
+-            }
+-        },
+-        /**
+-         * Nested list in list structure, 500 elements deep.
+-         *
+-         * @author J&ouml;rg Schaible
+-         * @since 1.4.9
+-         */
+-        NestedElements {
+-            private static final int DEPTH = 1000;
+-            private List<Integer> list;
+-
+-            @Override
+-            public void writeData(final HierarchicalStreamWriter writer) {
+-                for (int i = 0; i < DEPTH; ++i) {
+-                    writer.startNode("list");
+-                }
+-                list = new ArrayList<Integer>(Arrays.asList(42, 7, 3, -17));
+-                for (final Integer i : list) {
+-                    writer.startNode("int");
+-                    writer.setValue(i.toString());
+-                    writer.endNode();
+-                }
+-                for (int i = 0; i < DEPTH; ++i) {
+-                    writer.endNode();
+-                }
+-            }
+-
+-            @Override
+-            public void checkData(final Object o) {
+-                List<?> list = List.class.cast(o);
+-                int depth = DEPTH;
+-                while (depth-- > 1) {
+-                    assert list.size() == 1 : NestedElements + " fails list size";
+-                    list = List.class.cast(list.get(0));
+-                }
+-                assert this.list.equals(list) : NestedElements + " fails inner list";
+-            }
+-        },
+-        /**
+-         * An array with 1.000 elements.
+-         *
+-         * @author J&ouml;rg Schaible
+-         * @since 1.4.9
+-         */
+-        ManyChildren {
+-            private static final int LENGTH = 1000;
+-
+-            @Override
+-            public void writeData(final HierarchicalStreamWriter writer) {
+-                int length = LENGTH;
+-                writer.startNode("int-array");
+-                while (length-- > 0) {
+-                    writer.startNode("int");
+-                    writer.setValue(String.valueOf(length));
+-                    writer.endNode();
+-                }
+-                writer.endNode();
+-            }
+-
+-            @Override
+-            public void checkData(final Object o) {
+-                final int[] array = int[].class.cast(o);
+-                assert LENGTH == array.length : ManyChildren + " fails length";
+-                assert LENGTH - 1 == array[0] : ManyChildren + " fails start";
+-                assert 0 == array[LENGTH - 1] : ManyChildren + " fails end";
+-            }
+-        };
+-        /**
+-         * Write the data of the factory into the writer of the hierarchical stream.
+-         *
+-         * @param writer the writer of the data
+-         * @since 1.4.9
+-         */
+-        public abstract void writeData(HierarchicalStreamWriter writer);
+-
+-        /**
+-         * Check the deserialized object.
+-         *
+-         * @param o the object to check
+-         * @since 1.4.9
+-         */
+-        public abstract void checkData(Object o);
+-    }
+-
+-    @Param
+-    private DriverFactory driverFactory;
+-    private DataFactory dataFactory;
+-    private byte[] data;
+-    private XStream xstream;
+-    private HierarchicalStreamDriver driver;
+-
+-    /**
+-     * Initialize the XStream instance and instantiate the driver for the benchmark.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Setup
+-    public void init() {
+-        xstream = new XStream();
+-        xstream.addPermission(NoTypePermission.NONE);
+-        xstream.addPermission(ArrayTypePermission.ARRAYS);
+-        xstream.addPermission(PrimitiveTypePermission.PRIMITIVES);
+-        xstream.allowTypes(new Class[]{List.class, String.class});
+-        xstream.setMode(XStream.NO_REFERENCES);
+-        driver = driverFactory.getDriver();
+-    }
+-
+-    /**
+-     * Setup the data to deserialize.
+-     *
+-     * @param params the parameters of the benchmark
+-     * @since 1.4.9
+-     */
+-    @Setup(Level.Trial)
+-    public void setUp(final BenchmarkParams params) {
+-        final String benchmark = params.getBenchmark();
+-        dataFactory = DataFactory.valueOf(benchmark.substring(benchmark.lastIndexOf('.') + 6));
+-
+-        final ByteArrayOutputStream baos = new ByteArrayOutputStream(1024 * 1024);
+-        final HierarchicalStreamWriter writer = driver.createWriter(baos);
+-        dataFactory.writeData(writer);
+-        writer.close();
+-        data = baos.toByteArray();
+-    }
+-
+-    /**
+-     * Parse an element with a big text as value.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void parseBigText() {
+-        final Object o = xstream.unmarshal(driver.createReader(new ByteArrayInputStream(data)));
+-        dataFactory.checkData(o);
+-    }
+-
+-    /**
+-     * Parse a deeply nested structure.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void parseNestedElements() {
+-        final Object o = xstream.unmarshal(driver.createReader(new ByteArrayInputStream(data)));
+-        dataFactory.checkData(o);
+-    }
+-
+-    /**
+-     * Parse an element with a lot of simple children.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void parseManyChildren() {
+-        final Object o = xstream.unmarshal(driver.createReader(new ByteArrayInputStream(data)));
+-        dataFactory.checkData(o);
+-    }
+-}
+diff --git a/xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/StringConverterBenchmark.java b/xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/StringConverterBenchmark.java
+deleted file mode 100644
+index 5a74fdb..0000000
+--- a/xstream-jmh/src/java/com/thoughtworks/xstream/benchmark/jmh/StringConverterBenchmark.java
++++ /dev/null
+@@ -1,334 +0,0 @@
+-/*
+- * Copyright (C) 2015, 2017, 2021 XStream Committers.
+- * All rights reserved.
+- *
+- * The software in this package is published under the terms of the BSD
+- * style license a copy of which has been included with this distribution in
+- * the LICENSE.txt file.
+- *
+- * Created on 8. November 2015 by Joerg Schaible
+- */
+-package com.thoughtworks.xstream.benchmark.jmh;
+-
+-import java.io.StringWriter;
+-import java.util.Collections;
+-import java.util.Map;
+-import java.util.UUID;
+-import java.util.concurrent.ConcurrentHashMap;
+-import java.util.concurrent.ConcurrentMap;
+-import java.util.concurrent.TimeUnit;
+-
+-import org.openjdk.jmh.annotations.Benchmark;
+-import org.openjdk.jmh.annotations.BenchmarkMode;
+-import org.openjdk.jmh.annotations.Fork;
+-import org.openjdk.jmh.annotations.Level;
+-import org.openjdk.jmh.annotations.Measurement;
+-import org.openjdk.jmh.annotations.Mode;
+-import org.openjdk.jmh.annotations.OutputTimeUnit;
+-import org.openjdk.jmh.annotations.Scope;
+-import org.openjdk.jmh.annotations.Setup;
+-import org.openjdk.jmh.annotations.State;
+-import org.openjdk.jmh.annotations.Threads;
+-import org.openjdk.jmh.annotations.Warmup;
+-import org.openjdk.jmh.infra.BenchmarkParams;
+-
+-import com.thoughtworks.xstream.XStream;
+-import com.thoughtworks.xstream.converters.SingleValueConverter;
+-import com.thoughtworks.xstream.converters.basic.AbstractSingleValueConverter;
+-import com.thoughtworks.xstream.core.util.WeakCache;
+-import com.thoughtworks.xstream.io.xml.CompactWriter;
+-import com.thoughtworks.xstream.io.xml.MXParserDriver;
+-import com.thoughtworks.xstream.io.xml.PrettyPrintWriter;
+-import com.thoughtworks.xstream.io.xml.Xpp3Driver;
+-import com.thoughtworks.xstream.security.ArrayTypePermission;
+-import com.thoughtworks.xstream.security.NoTypePermission;
+-
+-
+-/**
+- * Benchmark for different StringConverter implementations.
+- *
+- * @author J&ouml;rg Schaible
+- * @since 1.4.9
+- */
+-@BenchmarkMode(Mode.AverageTime)
+-@Fork(value = 1)
+-@Measurement(iterations = 16)
+-@OutputTimeUnit(TimeUnit.NANOSECONDS)
+-@State(Scope.Benchmark)
+-@Threads(4)
+-@Warmup(iterations = 5)
+-public class StringConverterBenchmark {
+-
+-    private XStream xstream;
+-    private String xml;
+-
+-    /**
+-     * No memory usage for cache, but any string is a separate instance after deserialization. Memory consumption of the
+-     * deserialized array is nearly 3 times compared to a converter that caches and reuses the strings.
+-     *
+-     * @since 1.4.9
+-     */
+-    public static final class NonCachingStringConverter extends AbstractSingleValueConverter {
+-
+-        @Override
+-        public boolean canConvert(@SuppressWarnings("rawtypes") final Class type) {
+-            return type == String.class;
+-        }
+-
+-        @Override
+-        public Object fromString(final String str) {
+-            return str;
+-        }
+-    }
+-
+-    /**
+-     * Cache based on String.intern(). Uses PermGenSpace for Java 7 and below.
+-     *
+-     * @since 1.4.9
+-     */
+-    public static final class InternStringConverter extends AbstractSingleValueConverter {
+-
+-        @Override
+-        public boolean canConvert(@SuppressWarnings("rawtypes") final Class type) {
+-            return type == String.class;
+-        }
+-
+-        @Override
+-        public Object fromString(final String str) {
+-            return str.intern();
+-        }
+-    }
+-
+-    /**
+-     * Cache based on a synchronized WeakHashMap with weak keys. Ensures that the deserialized strings vanish when the
+-     * deserialized object is GC'ed.
+-     *
+-     * @since 1.4.9
+-     */
+-    public class SynchronizedWeakCacheStringConverter extends AbstractSingleValueConverter {
+-
+-        private final Map<String, String> cache;
+-        private final int lengthLimit;
+-
+-        private SynchronizedWeakCacheStringConverter(final Map<String, String> map, final int lengthLimit) {
+-            cache = map;
+-            this.lengthLimit = lengthLimit;
+-        }
+-
+-        /**
+-         * Constructs a SynchronizedWeakCacheStringConverter.
+-         *
+-         * @param lengthLimit length limit for cached strings
+-         * @since 1.4.9
+-         */
+-        @SuppressWarnings("unchecked")
+-        public SynchronizedWeakCacheStringConverter(final int lengthLimit) {
+-            this(Collections.synchronizedMap(new WeakCache()), lengthLimit);
+-        }
+-
+-        @Override
+-        public boolean canConvert(@SuppressWarnings("rawtypes") final Class type) {
+-            return type.equals(String.class);
+-        }
+-
+-        @Override
+-        public Object fromString(final String str) {
+-            if (cache != null && str != null && (lengthLimit < 0 || str.length() <= lengthLimit)) {
+-                String s = cache.get(str);
+-
+-                if (s == null) {
+-                    // fill cache
+-                    cache.put(str, str);
+-
+-                    s = str;
+-                }
+-
+-                return s;
+-            } else {
+-                return str;
+-            }
+-        }
+-    }
+-
+-    /**
+-     * Cache based on a ConcurrentMap. Cache is never flushed.
+-     *
+-     * @since 1.4.9
+-     */
+-    public class ConcurrentHashMapStringConverter extends AbstractSingleValueConverter {
+-
+-        private final ConcurrentMap<String, String> cache;
+-        private final int lengthLimit;
+-
+-        private ConcurrentHashMapStringConverter(final ConcurrentMap<String, String> map, final int lengthLimit) {
+-            cache = map;
+-            this.lengthLimit = lengthLimit;
+-        }
+-
+-        /**
+-         * Constructs a ConcurrentHashMapStringConverter.
+-         *
+-         * @param lengthLimit length limit for cached strings
+-         * @since 1.4.9
+-         */
+-        public ConcurrentHashMapStringConverter(final int lengthLimit) {
+-            this(new ConcurrentHashMap<String, String>(), lengthLimit);
+-        }
+-
+-        @Override
+-        public boolean canConvert(@SuppressWarnings("rawtypes") final Class type) {
+-            return type.equals(String.class);
+-        }
+-
+-        @Override
+-        public Object fromString(final String str) {
+-            if (cache != null && str != null && (lengthLimit < 0 || str.length() <= lengthLimit)) {
+-                final String s = cache.putIfAbsent(str, str);
+-                return s == null ? str : s;
+-            } else {
+-                return str;
+-            }
+-        }
+-    }
+-
+-    /**
+-     * Initialize the XML string to deserialize.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Setup
+-    public void init() {
+-        final String array[] = new String[300];
+-        for (int i = 0; i < 100;) {
+-            array[i] = String.valueOf(++i);
+-        }
+-        for (int i = 100; i < 200;) {
+-            array[i] = "Binary value " + i + ": " + Integer.toString(++i, 2);
+-        }
+-        for (int i = 200; i < 300;) {
+-            array[i++] = UUID.randomUUID().toString().replace('-', ':');
+-        }
+-
+-        final StringWriter stringWriter = new StringWriter();
+-        final PrettyPrintWriter writer = new CompactWriter(stringWriter);
+-        writer.startNode("string-array");
+-        for (int i = 0; i < 10000; ++i) {
+-            writer.startNode("string");
+-            final String s;
+-            if ((i & 1) == 1) {
+-                s = array[(i >> 1) % 100];
+-            } else if ((i & 2) == 2) {
+-                s = array[100 + (i >> 2) % 100];
+-            } else if ((i & 4) == 4) {
+-                s = array[200 + (i >> 3) % 100];
+-            } else {
+-                s = "Random UUID: " + UUID.randomUUID().toString();
+-            }
+-            writer.setValue(s);
+-            writer.endNode();
+-        }
+-        writer.endNode();
+-        writer.close();
+-        xml = stringWriter.toString();
+-    }
+-
+-    /**
+-     * Setup the data to deserialize.
+-     *
+-     * @param params the parameters of the benchmark
+-     * @since 1.4.9
+-     */
+-    @Setup(Level.Trial)
+-    public void setUp(final BenchmarkParams params) {
+-        final String benchmark = params.getBenchmark();
+-        final SingleValueConverter converter;
+-        final String name = benchmark.substring(StringConverterBenchmark.class.getName().length() + 1);
+-        if ("nonCaching".equals(name)) {
+-            converter = new NonCachingStringConverter();
+-        } else if ("intern".equals(name)) {
+-            converter = new InternStringConverter();
+-        } else if ("unlimitedSynchronizedWeakCache".equals(name)) {
+-            converter = new SynchronizedWeakCacheStringConverter(Integer.MAX_VALUE);
+-        } else if ("limitedSynchronizedWeakCache".equals(name)) {
+-            converter = new SynchronizedWeakCacheStringConverter(UUID.randomUUID().toString().length() + 2);
+-        } else if ("unlimitedConcurrentMap".equals(name)) {
+-            converter = new SynchronizedWeakCacheStringConverter(Integer.MAX_VALUE);
+-        } else if ("limitedConcurrentMap".equals(name)) {
+-            converter = new SynchronizedWeakCacheStringConverter(UUID.randomUUID().toString().length() + 2);
+-        } else {
+-            throw new IllegalStateException("Unsupported benchmark type: " + benchmark);
+-        }
+-        xstream = new XStream(new MXParserDriver());
+-        xstream.addPermission(NoTypePermission.NONE);
+-        xstream.addPermission(ArrayTypePermission.ARRAYS);
+-        xstream.allowTypes(new Class[] {String.class});
+-        xstream.registerConverter(converter);
+-    }
+-
+-    /**
+-     * No cache for deserialized strings, each string is an own instance.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void nonCaching() {
+-        run();
+-    }
+-
+-    /**
+-     * Any string is stored also in the String's internal memory space.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void intern() {
+-        run();
+-    }
+-
+-    /**
+-     * Any string is cached in a weak entry.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void unlimitedSynchronizedWeakCache() {
+-        run();
+-    }
+-
+-    /**
+-     * Strings of 38 characters or less are cached in a weak entry.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void limitedSynchronizedWeakCache() {
+-        run();
+-    }
+-
+-    /**
+-     * Any string is cached in a concurrent map.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void unlimitedConcurrentMap() {
+-        run();
+-    }
+-
+-    /**
+-     * Strings of 38 characters or less are cached in a concurrent map.
+-     *
+-     * @since 1.4.9
+-     */
+-    @Benchmark
+-    public void limitedConcurrentMap() {
+-        run();
+-    }
+-
+-    private void run() {
+-        final String[] array = (String[])xstream.fromXML(xml);
+-        assert array.length == 10000 : "array length is " + array.length;
+-        assert array[1].equals("1") : "2nd element was: " + array[1];
+-        assert array[9999].equals("100") : "last element was: " + array[9999];
+-    }
+-}
+diff --git a/xstream/src/java/com/thoughtworks/xstream/io/xml/MXParserDomDriver.java b/xstream/src/java/com/thoughtworks/xstream/io/xml/MXParserDomDriver.java
+deleted file mode 100644
+index da75574..0000000
+--- a/xstream/src/java/com/thoughtworks/xstream/io/xml/MXParserDomDriver.java
++++ /dev/null
+@@ -1,53 +0,0 @@
+-/*
+- * Copyright (C) 2021 XStream Committers.
+- * All rights reserved.
+- *
+- * The software in this package is published under the terms of the BSD
+- * style license a copy of which has been included with this distribution in
+- * the LICENSE.txt file.
+- *
+- * Created on 02. January 2021 by Joerg Schaible
+- */
+-package com.thoughtworks.xstream.io.xml;
+-
+-import com.thoughtworks.xstream.io.HierarchicalStreamDriver;
+-import com.thoughtworks.xstream.io.naming.NameCoder;
+-
+-import io.github.xstream.mxparser.MXParser;
+-
+-import org.xmlpull.v1.XmlPullParser;
+-
+-/**
+- * A {@link HierarchicalStreamDriver} for XPP DOM using the MXParser fork.
+- *
+- * @author J&ouml;rg Schaible
+- * @since 1.4.16
+- */
+-public class MXParserDomDriver extends AbstractXppDomDriver {
+-
+-    /**
+-     * Construct an MXParserDomDriver.
+-     *
+-     * @since 1.4.16
+-     */
+-    public MXParserDomDriver() {
+-        super(new XmlFriendlyNameCoder());
+-    }
+-
+-    /**
+-     * Construct an Xpp3DomDriver.
+-     *
+-     * @param nameCoder the replacer for XML friendly names
+-     * @since 1.4
+-     */
+-    public MXParserDomDriver(NameCoder nameCoder) {
+-        super(nameCoder);
+-    }
+-
+-    /**
+-     * {@inheritDoc}
+-     */
+-    protected XmlPullParser createParser() {
+-        return new MXParser();
+-    }
+-}
+diff --git a/xstream/src/java/com/thoughtworks/xstream/io/xml/MXParserDriver.java b/xstream/src/java/com/thoughtworks/xstream/io/xml/MXParserDriver.java
+deleted file mode 100644
+index 3ecf312..0000000
+--- a/xstream/src/java/com/thoughtworks/xstream/io/xml/MXParserDriver.java
++++ /dev/null
+@@ -1,55 +0,0 @@
+-/*
+- * Copyright (C) 2021 XStream Committers.
+- * All rights reserved.
+- *
+- * The software in this package is published under the terms of the BSD
+- * style license a copy of which has been included with this distribution in
+- * the LICENSE.txt file.
+- *
+- * Created on 2. January 2021 by Joerg Schaible
+- */
+-package com.thoughtworks.xstream.io.xml;
+-
+-
+-import com.thoughtworks.xstream.io.HierarchicalStreamDriver;
+-import com.thoughtworks.xstream.io.naming.NameCoder;
+-
+-import io.github.xstream.mxparser.MXParser;
+-
+-import org.xmlpull.v1.XmlPullParser;
+-
+-
+-/**
+- * A {@link HierarchicalStreamDriver} using the MXParser fork.
+- *
+- * @author J&ouml;rg Schaible
+- * @since 1.4.16
+- */
+-public class MXParserDriver extends AbstractXppDriver {
+-
+-    /**
+-     * Construct an MXParserDriver.
+-     *
+-     * @since 1.4.16
+-     */
+-    public MXParserDriver() {
+-        super(new XmlFriendlyNameCoder());
+-    }
+-
+-    /**
+-     * Construct an Xpp3Driver.
+-     *
+-     * @param nameCoder the replacer for XML friendly names
+-     * @since 1.4.16
+-     */
+-    public MXParserDriver(NameCoder nameCoder) {
+-        super(nameCoder);
+-    }
+-
+-    /**
+-     * {@inheritDoc}
+-     */
+-    protected XmlPullParser createParser() {
+-        return new MXParser();
+-    }
+-}
+diff --git a/xstream/src/test/com/thoughtworks/acceptance/MultipleObjectsInOneStreamTest.java b/xstream/src/test/com/thoughtworks/acceptance/MultipleObjectsInOneStreamTest.java
+deleted file mode 100644
+index 557e792..0000000
+--- a/xstream/src/test/com/thoughtworks/acceptance/MultipleObjectsInOneStreamTest.java
++++ /dev/null
+@@ -1,397 +0,0 @@
+-/*
+- * Copyright (C) 2005, 2006 Joe Walnes.
+- * Copyright (C) 2006, 2007, 2008, 2009, 2018, 2021 XStream Committers.
+- * All rights reserved.
+- *
+- * The software in this package is published under the terms of the BSD
+- * style license a copy of which has been included with this distribution in
+- * the LICENSE.txt file.
+- * 
+- * Created on 09. December 2005 by Joe Walnes
+- */
+-package com.thoughtworks.acceptance;
+-
+-import com.thoughtworks.acceptance.objects.Software;
+-import com.thoughtworks.acceptance.objects.StandardObject;
+-import com.thoughtworks.xstream.MarshallingStrategy;
+-import com.thoughtworks.xstream.converters.ConversionException;
+-import com.thoughtworks.xstream.converters.ConverterLookup;
+-import com.thoughtworks.xstream.converters.DataHolder;
+-import com.thoughtworks.xstream.core.ReferenceByIdMarshaller;
+-import com.thoughtworks.xstream.core.ReferenceByIdUnmarshaller;
+-import com.thoughtworks.xstream.io.HierarchicalStreamReader;
+-import com.thoughtworks.xstream.io.HierarchicalStreamWriter;
+-import com.thoughtworks.xstream.io.ReaderWrapper;
+-import com.thoughtworks.xstream.io.xml.MXParserDriver;
+-import com.thoughtworks.xstream.io.xml.PrettyPrintWriter;
+-import com.thoughtworks.xstream.io.xml.XppReader;
+-import com.thoughtworks.xstream.mapper.Mapper;
+-import com.thoughtworks.xstream.testutil.CallLog;
+-
+-import java.io.ByteArrayInputStream;
+-import java.io.ByteArrayOutputStream;
+-import java.io.EOFException;
+-import java.io.IOException;
+-import java.io.InputStreamReader;
+-import java.io.ObjectInputStream;
+-import java.io.ObjectOutputStream;
+-import java.io.OutputStreamWriter;
+-import java.io.Reader;
+-import java.io.StringReader;
+-import java.io.StringWriter;
+-import java.io.Writer;
+-import java.util.zip.Deflater;
+-import java.util.zip.DeflaterOutputStream;
+-import java.util.zip.Inflater;
+-import java.util.zip.InflaterInputStream;
+-
+-
+-public class MultipleObjectsInOneStreamTest extends AbstractAcceptanceTest {
+-
+-    public static class Person extends StandardObject {
+-
+-        private String firstName;
+-        private String lastName;
+-        private Person secretary;
+-
+-        public Person(String firstName, String lastName) {
+-            this.firstName = firstName;
+-            this.lastName = lastName;
+-        }
+-
+-    }
+-
+-    public void testReadAndWriteMultipleObjectsInOneStream() {
+-        xstream.alias("person", Person.class);
+-        StringWriter buffer = new StringWriter();
+-
+-        // serialize
+-        HierarchicalStreamWriter writer = new PrettyPrintWriter(buffer);
+-        writer.startNode("people");
+-        xstream.marshal(new Person("Postman", "Pat"), writer);
+-        xstream.marshal(new Person("Bob", "Builder"), writer);
+-        xstream.marshal(new Person("Tinky", "Winky"), writer);
+-        writer.endNode();
+-
+-        assertEquals(""
+-            + "<people>\n"
+-            + "  <person>\n"
+-            + "    <firstName>Postman</firstName>\n"
+-            + "    <lastName>Pat</lastName>\n"
+-            + "  </person>\n"
+-            + "  <person>\n"
+-            + "    <firstName>Bob</firstName>\n"
+-            + "    <lastName>Builder</lastName>\n"
+-            + "  </person>\n"
+-            + "  <person>\n"
+-            + "    <firstName>Tinky</firstName>\n"
+-            + "    <lastName>Winky</lastName>\n"
+-            + "  </person>\n"
+-            + "</people>", buffer.toString());
+-
+-        // deserialize
+-        HierarchicalStreamReader reader = new XppReader(new StringReader(buffer.toString()));
+-
+-        assertTrue("should be another object to read (1)", reader.hasMoreChildren());
+-        reader.moveDown();
+-        assertEquals(new Person("Postman", "Pat"), xstream.unmarshal(reader));
+-        reader.moveUp();
+-
+-        assertTrue("should be another object to read (2)", reader.hasMoreChildren());
+-        reader.moveDown();
+-        assertEquals(new Person("Bob", "Builder"), xstream.unmarshal(reader));
+-        reader.moveUp();
+-
+-        assertTrue("should be another object to read (3)", reader.hasMoreChildren());
+-        reader.moveDown();
+-        assertEquals(new Person("Tinky", "Winky"), xstream.unmarshal(reader));
+-        reader.moveUp();
+-
+-        assertFalse("should be no more objects", reader.hasMoreChildren());
+-    }
+-
+-    public void testDrivenThroughObjectStream() throws IOException, ClassNotFoundException {
+-        Writer writer = new StringWriter();
+-        xstream.alias("software", Software.class);
+-
+-        ObjectOutputStream oos = xstream.createObjectOutputStream(writer);
+-        oos.writeInt(123);
+-        oos.writeObject("hello");
+-        oos.writeObject(new Software("tw", "xs"));
+-        oos.close();
+-
+-        String expectedXml = ""
+-            + "<object-stream>\n"
+-            + "  <int>123</int>\n"
+-            + "  <string>hello</string>\n"
+-            + "  <software>\n"
+-            + "    <vendor>tw</vendor>\n"
+-            + "    <name>xs</name>\n"
+-            + "  </software>\n"
+-            + "</object-stream>";
+-
+-        assertEquals(expectedXml, writer.toString());
+-
+-        ObjectInputStream ois = xstream.createObjectInputStream(new StringReader(writer
+-            .toString()));
+-        assertEquals(123, ois.readInt());
+-        assertEquals("hello", ois.readObject());
+-        assertEquals(new Software("tw", "xs"), ois.readObject());
+-
+-        try {
+-            ois.readObject(); // As far as I can see this is the only clue the
+-                                // ObjectInputStream gives that it's done.
+-            fail("Expected EOFException");
+-        } catch (EOFException expectedException) {
+-            // good
+-        }
+-    }
+-
+-    public void testDrivenThroughCompressedObjectStream()
+-        throws IOException, ClassNotFoundException {
+-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+-        Writer writer = new OutputStreamWriter(new DeflaterOutputStream(baos, new Deflater(
+-            Deflater.BEST_COMPRESSION)), "UTF-8");
+-        xstream.alias("software", Software.class);
+-
+-        ObjectOutputStream oos = xstream.createObjectOutputStream(writer);
+-        oos.writeInt(123);
+-        oos.writeObject("hello");
+-        oos.writeObject(new Software("tw", "xs"));
+-        oos.flush();
+-        oos.close();
+-
+-        byte[] data = baos.toByteArray();
+-        assertTrue("Too less data: " + data.length, data.length > 2);
+-
+-        ObjectInputStream ois = xstream.createObjectInputStream(new InputStreamReader(
+-            new InflaterInputStream(new ByteArrayInputStream(data), new Inflater()), "UTF-8"));
+-        assertEquals(123, ois.readInt());
+-        assertEquals("hello", ois.readObject());
+-        assertEquals(new Software("tw", "xs"), ois.readObject());
+-
+-        try {
+-            ois.readObject(); // As far as I can see this is the only clue the
+-                                // ObjectInputStream gives that it's done.
+-            fail("Expected EOFException");
+-        } catch (EOFException expectedException) {
+-            // good
+-        }
+-    }
+-
+-    private static class LevelTrackingReader extends ReaderWrapper {
+-        private int level;
+-        protected LevelTrackingReader(HierarchicalStreamReader reader) {
+-            super(reader);
+-        }
+-
+-        public void moveDown() {
+-            ++level;
+-            super.moveDown();
+-        }
+-
+-        public void moveUp() {
+-            super.moveUp();
+-            --level;
+-        }
+-
+-        public int getLevel() {
+-            return level;
+-        }
+-    }
+-
+-    public void testFailSafeDeserialization() throws IOException, ClassNotFoundException {
+-        final String xml = ""
+-            + "<object-stream>\n"
+-            + "  <string>top</string>\n"
+-            + "  <list>\n"
+-            + "    <string>first</string>\n"
+-            + "    <int-array>\n"
+-            + "      <int>1</int>\n"
+-            + "      <int>invalid</int>\n" // deserialization will fail here
+-            + "      <int>3</int>\n"
+-            + "    </int-array>\n"
+-            + "    <string>last</string>\n"
+-            + "  </list>\n"
+-            + "  <string>bottom</string>\n"
+-            + "</object-stream>";
+-
+-        final LevelTrackingReader reader = new LevelTrackingReader(new MXParserDriver().createReader(new StringReader(xml)));
+-        final ObjectInputStream ois = xstream.createObjectInputStream(reader);
+-        final int level = reader.getLevel();
+-        assertEquals("top", ois.readObject());
+-        try {
+-            ois.readObject();
+-            fail("Thrown " + ConversionException.class.getName() + " expected");
+-        } catch (final ConversionException e) {
+-            assertEquals(3, reader.getLevel() - level);
+-            do {
+-                reader.moveUp();
+-            } while (level != reader.getLevel());
+-        }
+-        assertEquals("bottom", ois.readObject());
+-        ois.close();
+-    }
+-
+-    public void testObjectOutputStreamPropagatesCloseAndFlushEvents() throws IOException {
+-        // setup
+-        final CallLog log = new CallLog();
+-        Writer loggingWriter = new Writer() {
+-            public void close() {
+-                log.actual("close");
+-            }
+-
+-            public void flush() {
+-                log.actual("flush");
+-            }
+-
+-            public void write(char cbuf[], int off, int len) {
+-                // don't care about this
+-            }
+-        };
+-
+-        // expectations
+-        log.expect("flush"); // TWO flushes are currently caused. Only one is needed, but
+-                                // this is no big deal.
+-        log.expect("flush");
+-        log.expect("close");
+-
+-        // execute
+-        ObjectOutputStream objectOutputStream = xstream.createObjectOutputStream(loggingWriter);
+-        objectOutputStream.flush();
+-        objectOutputStream.close();
+-
+-        // verify
+-        log.verify();
+-    }
+-
+-    public void testObjectInputStreamPropegatesCloseEvent() throws IOException {
+-        // setup
+-        final CallLog log = new CallLog();
+-        Reader loggingReader = new StringReader("<int>1</int>") {
+-            public void close() {
+-                log.actual("close");
+-            }
+-        };
+-
+-        // expectations
+-        log.expect("close");
+-
+-        // execute
+-        ObjectInputStream objectInputStream = xstream.createObjectInputStream(loggingReader);
+-        objectInputStream.close();
+-
+-        // verify
+-        log.verify();
+-    }
+-
+-    public void testByDefaultDoesNotPreserveReferencesAcrossDifferentObjectsInStream()
+-        throws Exception {
+-        xstream.alias("person", Person.class);
+-
+-        // Setup initial data: two object, one referencing another...
+-        Person alice = new Person("Alice", "Thing");
+-        Person jane = new Person("Jane", "Blah");
+-        jane.secretary = alice;
+-
+-        // Serialize the two individual objects.
+-        StringWriter writer = new StringWriter();
+-        ObjectOutputStream out = xstream.createObjectOutputStream(writer);
+-        out.writeObject(alice);
+-        out.writeObject(jane);
+-        out.close();
+-
+-        // Deserialize the two objects.
+-        ObjectInputStream in = xstream.createObjectInputStream(new StringReader(writer
+-            .toString()));
+-        alice = (Person)in.readObject();
+-        jane = (Person)in.readObject();
+-        in.close();
+-
+-        assertNotSame(alice, jane.secretary); // NOT SAME
+-    }
+-
+-    static class ReusingReferenceByIdMarshallingStrategy implements MarshallingStrategy {
+-
+-        private ReferenceByIdMarshaller marshaller;
+-        private ReferenceByIdUnmarshaller unmarshaller;
+-
+-        public void marshal(HierarchicalStreamWriter writer, Object obj,
+-            ConverterLookup converterLookup, Mapper mapper, DataHolder dataHolder) {
+-            if (marshaller == null) {
+-                marshaller = new ReferenceByIdMarshaller(writer, converterLookup, mapper);
+-            }
+-            marshaller.start(obj, dataHolder);
+-        }
+-
+-        public Object unmarshal(Object root, HierarchicalStreamReader reader,
+-            DataHolder dataHolder, ConverterLookup converterLookup, Mapper mapper) {
+-            if (unmarshaller == null) {
+-                unmarshaller = new ReferenceByIdUnmarshaller(
+-                    root, reader, converterLookup, mapper);
+-            }
+-            return unmarshaller.start(dataHolder);
+-        }
+-    }
+-
+-    public void testSupportsOptionToPreserveReferencesAcrossDifferentObjectsInStream()
+-        throws Exception {
+-        xstream.alias("person", Person.class);
+-        xstream.setMarshallingStrategy(new ReusingReferenceByIdMarshallingStrategy());
+-
+-        // Setup initial data: two object, one referencing another...
+-        Person alice = new Person("Alice", "Thing");
+-        Person jane = new Person("Jane", "Blah");
+-        jane.secretary = alice;
+-
+-        // Serialize the two individual objects.
+-        StringWriter writer = new StringWriter();
+-        ObjectOutputStream out = xstream.createObjectOutputStream(writer);
+-        out.writeObject(alice);
+-        out.writeObject(jane);
+-        out.close();
+-
+-        // Deserialize the two objects.
+-        ObjectInputStream in = xstream.createObjectInputStream(new StringReader(writer
+-            .toString()));
+-        alice = (Person)in.readObject();
+-        jane = (Person)in.readObject();
+-        in.close();
+-
+-        assertSame(alice, jane.secretary);
+-    }
+-
+-    public void testReadUnsignedValuesFromInputStream() throws IOException {
+-        final Writer writer = new StringWriter();
+-        final ObjectOutputStream oos = xstream.createObjectOutputStream(writer);
+-        oos.writeByte(1);
+-        oos.writeByte(-1);
+-        oos.writeByte(Byte.MIN_VALUE);
+-        oos.writeShort(1);
+-        oos.writeShort(-1);
+-        oos.writeShort(Short.MIN_VALUE);
+-        oos.close();
+-
+-        final String expectedXml = ""
+-            + "<object-stream>\n"
+-            + "  <byte>1</byte>\n"
+-            + "  <byte>-1</byte>\n"
+-            + "  <byte>-128</byte>\n"
+-            + "  <short>1</short>\n"
+-            + "  <short>-1</short>\n"
+-            + "  <short>-32768</short>\n"
+-            + "</object-stream>";
+-
+-        assertEquals(expectedXml, writer.toString());
+-
+-        final ObjectInputStream ois = xstream.createObjectInputStream(new StringReader(writer.toString()));
+-        assertEquals(1, ois.readUnsignedByte());
+-        assertEquals(255, ois.readUnsignedByte());
+-        assertEquals(128, ois.readUnsignedByte());
+-        assertEquals(1, ois.readUnsignedShort());
+-        assertEquals(65535, ois.readUnsignedShort());
+-        assertEquals(32768, ois.readUnsignedShort());
+-
+-        ois.close();
+-    }
+-}
+diff --git a/xstream/src/test/com/thoughtworks/xstream/io/DriverEndToEndTestSuite.java b/xstream/src/test/com/thoughtworks/xstream/io/DriverEndToEndTestSuite.java
+deleted file mode 100644
+index f5aa906..0000000
+--- a/xstream/src/test/com/thoughtworks/xstream/io/DriverEndToEndTestSuite.java
++++ /dev/null
+@@ -1,187 +0,0 @@
+-/*
+- * Copyright (C) 2005 Joe Walnes.
+- * Copyright (C) 2006, 2007, 2011, 2013, 2016, 2017, 2021 XStream Committers.
+- * All rights reserved.
+- *
+- * The software in this package is published under the terms of the BSD
+- * style license a copy of which has been included with this distribution in
+- * the LICENSE.txt file.
+- *
+- * Created on 30. April 2005 by Joe Walnes
+- */
+-package com.thoughtworks.xstream.io;
+-
+-import java.io.ByteArrayInputStream;
+-import java.io.ByteArrayOutputStream;
+-import java.util.ArrayList;
+-
+-import com.thoughtworks.acceptance.objects.SampleLists;
+-import com.thoughtworks.xstream.XStream;
+-import com.thoughtworks.xstream.converters.UnmarshallingContext;
+-import com.thoughtworks.xstream.converters.collections.CollectionConverter;
+-import com.thoughtworks.xstream.core.JVM;
+-import com.thoughtworks.xstream.io.binary.BinaryStreamDriver;
+-import com.thoughtworks.xstream.io.xml.BEAStaxDriver;
+-import com.thoughtworks.xstream.io.xml.Dom4JDriver;
+-import com.thoughtworks.xstream.io.xml.DomDriver;
+-import com.thoughtworks.xstream.io.xml.JDomDriver;
+-import com.thoughtworks.xstream.io.xml.KXml2DomDriver;
+-import com.thoughtworks.xstream.io.xml.KXml2Driver;
+-import com.thoughtworks.xstream.io.xml.MXParserDomDriver;
+-import com.thoughtworks.xstream.io.xml.MXParserDriver;
+-import com.thoughtworks.xstream.io.xml.StaxDriver;
+-import com.thoughtworks.xstream.io.xml.WstxDriver;
+-import com.thoughtworks.xstream.io.xml.XomDriver;
+-import com.thoughtworks.xstream.io.xml.Xpp3DomDriver;
+-import com.thoughtworks.xstream.io.xml.Xpp3Driver;
+-import com.thoughtworks.xstream.io.xml.XppDomDriver;
+-import com.thoughtworks.xstream.io.xml.XppDriver;
+-
+-import junit.framework.Assert;
+-import junit.framework.AssertionFailedError;
+-import junit.framework.Test;
+-import junit.framework.TestCase;
+-import junit.framework.TestSuite;
+-
+-
+-public class DriverEndToEndTestSuite extends TestSuite {
+-
+-    public static Test suite() {
+-        return new DriverEndToEndTestSuite();
+-    }
+-
+-    public DriverEndToEndTestSuite() {
+-        super(DriverEndToEndTestSuite.class.getName());
+-        addDriverTest(new BEAStaxDriver());
+-        addDriverTest(new BinaryStreamDriver());
+-        addDriverTest(new Dom4JDriver());
+-        addDriverTest(new DomDriver());
+-        addDriverTest(new JDomDriver());
+-        if (JVM.is15()) {
+-            final Class driverType = JVM.loadClassForName("com.thoughtworks.xstream.io.xml.JDom2Driver");
+-            try {
+-                addDriverTest((HierarchicalStreamDriver)driverType.newInstance());
+-            } catch (final InstantiationException e) {
+-                throw new AssertionFailedError("Cannot instantiate " + driverType.getName());
+-            } catch (final IllegalAccessException e) {
+-                throw new AssertionFailedError("Cannot access default constructor of " + driverType.getName());
+-            }
+-        }
+-        addDriverTest(new KXml2DomDriver());
+-        addDriverTest(new KXml2Driver());
+-        addDriverTest(new StaxDriver());
+-        if (JVM.is16()) {
+-            final Class driverType = JVM.loadClassForName("com.thoughtworks.xstream.io.xml.StandardStaxDriver");
+-            try {
+-                addDriverTest((HierarchicalStreamDriver)driverType.newInstance());
+-            } catch (final InstantiationException e) {
+-                throw new AssertionFailedError("Cannot instantiate " + driverType.getName());
+-            } catch (final IllegalAccessException e) {
+-                throw new AssertionFailedError("Cannot access default constructor of " + driverType.getName());
+-            }
+-        }
+-        addDriverTest(new WstxDriver());
+-        addDriverTest(new XomDriver());
+-        addDriverTest(new MXParserDomDriver());
+-        addDriverTest(new MXParserDriver());
+-        addDriverTest(new Xpp3DomDriver());
+-        addDriverTest(new Xpp3Driver());
+-        addDriverTest(new XppDomDriver());
+-        addDriverTest(new XppDriver());
+-        if (JVM.is14()) {
+-            final Class driverType = JVM.loadClassForName("com.thoughtworks.xstream.io.json.JettisonMappedXmlDriver");
+-            try {
+-                addDriverTest((HierarchicalStreamDriver)driverType.newInstance());
+-            } catch (final InstantiationException e) {
+-                throw new AssertionFailedError("Cannot instantiate " + driverType.getName());
+-            } catch (final IllegalAccessException e) {
+-                throw new AssertionFailedError("Cannot access default constructor of " + driverType.getName());
+-            }
+-        }
+-    }
+-
+-    private void testObject(final HierarchicalStreamDriver driver) {
+-        final XStream xstream = new XStream(driver);
+-        xstream.allowTypes(new Class[] { SampleLists.class });
+-        xstream.registerConverter(new CollectionConverter(xstream.getMapper()) {
+-
+-            public Object unmarshal(final HierarchicalStreamReader reader, final UnmarshallingContext context) {
+-                final ExtendedHierarchicalStreamReader exReader = (ExtendedHierarchicalStreamReader)reader;
+-                if (exReader.peekNextChild() == null) {
+-                    return new ArrayList();
+-                }
+-                return super.unmarshal(reader, context);
+-            }
+-
+-        });
+-
+-        final SampleLists in = new SampleLists();
+-        in.good.add("one");
+-        in.good.add("two");
+-        in.good.add("three");
+-        in.bad.add(Boolean.TRUE);
+-        in.bad.add(Boolean.FALSE);
+-        final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+-        xstream.toXML(in, buffer);
+-        final Object out = xstream.fromXML(new ByteArrayInputStream(buffer.toByteArray()));
+-
+-        Assert.assertEquals(in, out);
+-    }
+-
+-    private void testStream(final HierarchicalStreamDriver driver) {
+-        final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+-        final HierarchicalStreamWriter writer = driver.createWriter(buffer);
+-        writer.startNode("root");
+-        writer.startNode("child1");
+-        writer.startNode("baby");
+-        writer.endNode();
+-        writer.endNode();
+-        writer.startNode("child2");
+-        writer.addAttribute("A", "a");
+-        writer.setValue("v");
+-        writer.endNode();
+-        writer.endNode();
+-        writer.close();
+-
+-        final HierarchicalStreamReader reader = driver.createReader(new ByteArrayInputStream(buffer.toByteArray()));
+-        Assert.assertEquals("root", reader.getNodeName());
+-        Assert.assertTrue(reader.hasMoreChildren());
+-        reader.moveDown();
+-        Assert.assertEquals("child1", reader.getNodeName());
+-        Assert.assertEquals(0, reader.getAttributeCount());
+-        Assert.assertNull(reader.getAttribute("foo"));
+-        Assert.assertTrue(reader.hasMoreChildren());
+-        reader.moveUp();
+-        Assert.assertTrue(reader.hasMoreChildren());
+-        reader.moveDown();
+-        Assert.assertEquals("child2", reader.getNodeName());
+-        Assert.assertEquals(1, reader.getAttributeCount());
+-        Assert.assertEquals("a", reader.getAttribute("A"));
+-        Assert.assertNull(reader.getAttribute("foo"));
+-        //Assert.assertNull(reader.getAttribute(1));
+-        Assert.assertFalse(reader.hasMoreChildren());
+-        reader.moveUp();
+-        Assert.assertFalse(reader.hasMoreChildren());
+-        reader.close();
+-    }
+-
+-    private void addDriverTest(final HierarchicalStreamDriver driver) {
+-        final String testName = getShortName(driver);
+-        addTest(new TestCase(testName + "_Object") {
+-            protected void runTest() throws Throwable {
+-                testObject(driver);
+-            }
+-        });
+-        addTest(new TestCase(testName + "_Stream") {
+-            protected void runTest() throws Throwable {
+-                testStream(driver);
+-            }
+-        });
+-    }
+-
+-    private String getShortName(final HierarchicalStreamDriver driver) {
+-        String result = driver.getClass().getName();
+-        result = result.substring(result.lastIndexOf('.') + 1);
+-        return result;
+-    }
+-}
+diff --git a/xstream/src/test/com/thoughtworks/xstream/io/binary/BinaryStreamTest.java b/xstream/src/test/com/thoughtworks/xstream/io/binary/BinaryStreamTest.java
+deleted file mode 100644
+index a01065a..0000000
+--- a/xstream/src/test/com/thoughtworks/xstream/io/binary/BinaryStreamTest.java
++++ /dev/null
+@@ -1,92 +0,0 @@
+-/*
+- * Copyright (C) 2006 Joe Walnes.
+- * Copyright (C) 2006, 2007, 2011, 2015, 2016, 2021 XStream Committers.
+- * All rights reserved.
+- *
+- * The software in this package is published under the terms of the BSD
+- * style license a copy of which has been included with this distribution in
+- * the LICENSE.txt file.
+- * 
+- * Created on 04. June 2006 by Joe Walnes
+- */
+-package com.thoughtworks.xstream.io.binary;
+-
+-import com.thoughtworks.xstream.XStreamException;
+-import com.thoughtworks.xstream.io.HierarchicalStreamReader;
+-import com.thoughtworks.xstream.io.HierarchicalStreamWriter;
+-import com.thoughtworks.xstream.io.copy.HierarchicalStreamCopier;
+-import com.thoughtworks.xstream.io.xml.AbstractXMLReaderTest;
+-import com.thoughtworks.xstream.io.xml.MXParserDriver;
+-
+-import java.io.ByteArrayOutputStream;
+-import java.io.StringReader;
+-import java.io.ByteArrayInputStream;
+-
+-public class BinaryStreamTest extends AbstractXMLReaderTest {
+-
+-    private HierarchicalStreamCopier copier = new HierarchicalStreamCopier();
+-
+-    protected void setUp() throws Exception {
+-        super.setUp();
+-    }
+-
+-    // factory method
+-    protected HierarchicalStreamReader createReader(String xml) throws Exception {
+-        // Transmogrify XML input into binary format.
+-        HierarchicalStreamReader xmlReader = 
+-                new MXParserDriver().createReader(new StringReader(xml));
+-
+-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+-        HierarchicalStreamWriter binaryWriter = new BinaryStreamWriter(buffer);
+-        copier.copy(xmlReader, binaryWriter);
+-
+-        return new BinaryStreamReader(new ByteArrayInputStream(buffer.toByteArray()));
+-    }
+-
+-    public void testHandlesMoreThan256Ids() {
+-        int count = 500;
+-
+-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+-        HierarchicalStreamWriter binaryWriter = new BinaryStreamWriter(buffer);
+-        binaryWriter.startNode("root");
+-        for (int i = 0; i < count; i++) {
+-            binaryWriter.startNode("node" + i);
+-            binaryWriter.endNode();
+-        }
+-        for (int i = 0; i < count; i++) {
+-            binaryWriter.startNode("node" + i);
+-            binaryWriter.endNode();
+-        }
+-        binaryWriter.endNode();
+-
+-        HierarchicalStreamReader binaryReader
+-                = new BinaryStreamReader(new ByteArrayInputStream(buffer.toByteArray()));
+-        assertEquals("root", binaryReader.getNodeName());
+-        for (int i = 0; i < count; i++) {
+-            assertTrue("Expected child " + i, binaryReader.hasMoreChildren());
+-            binaryReader.moveDown();
+-            assertEquals("node" + i, binaryReader.getNodeName());
+-            binaryReader.moveUp();
+-        }
+-        for (int i = 0; i < count; i++) {
+-            assertTrue("Expected child " + i, binaryReader.hasMoreChildren());
+-            binaryReader.moveDown();
+-            assertEquals("node" + i, binaryReader.getNodeName());
+-            binaryReader.moveUp();
+-        }
+-
+-    }
+-
+-    public void testIsXXEVulnerableWithExternalGeneralEntity() throws Exception {
+-        try {
+-            super.testIsXXEVulnerableWithExternalGeneralEntity();
+-            fail("Thrown " + XStreamException.class.getName() + " expected");
+-        } catch (final XStreamException e) {
+-            final String message = e.getCause().getMessage();
+-            if (message.indexOf("resolve entity") < 0) {
+-                throw e;
+-            }
+-        }
+-    }
+-
+-}
+diff --git a/xstream/src/test/com/thoughtworks/xstream/io/copy/HierarchicalStreamCopierTest.java b/xstream/src/test/com/thoughtworks/xstream/io/copy/HierarchicalStreamCopierTest.java
+deleted file mode 100644
+index 3b94d7c..0000000
+--- a/xstream/src/test/com/thoughtworks/xstream/io/copy/HierarchicalStreamCopierTest.java
++++ /dev/null
+@@ -1,74 +0,0 @@
+-/*
+- * Copyright (C) 2006 Joe Walnes.
+- * Copyright (C) 2006, 2007, 2011, 2015, 2016, 2021 XStream Committers.
+- * All rights reserved.
+- *
+- * The software in this package is published under the terms of the BSD
+- * style license a copy of which has been included with this distribution in
+- * the LICENSE.txt file.
+- * 
+- * Created on 04. June 2006 by Joe Walnes
+- */
+-package com.thoughtworks.xstream.io.copy;
+-
+-import com.thoughtworks.xstream.XStreamException;
+-import com.thoughtworks.xstream.io.HierarchicalStreamReader;
+-import com.thoughtworks.xstream.io.HierarchicalStreamWriter;
+-import com.thoughtworks.xstream.io.xml.AbstractXMLReaderTest;
+-import com.thoughtworks.xstream.io.xml.CompactWriter;
+-import com.thoughtworks.xstream.io.xml.MXParserDriver;
+-import com.thoughtworks.xstream.io.xml.XppReader;
+-import com.thoughtworks.xstream.io.xml.xppdom.XppFactory;
+-
+-import org.xmlpull.v1.XmlPullParserException;
+-
+-import java.io.StringReader;
+-import java.io.StringWriter;
+-
+-public class HierarchicalStreamCopierTest extends AbstractXMLReaderTest {
+-
+-    private HierarchicalStreamCopier copier = new HierarchicalStreamCopier();
+-
+-    // This test leverages the existing (comprehensive) tests for the XML readers
+-    // and adds an additional stage of copying in.
+-
+-    // factory method - overriding base class.
+-    protected HierarchicalStreamReader createReader(String xml) throws Exception {
+-        HierarchicalStreamReader sourceReader = 
+-                new MXParserDriver().createReader(new StringReader(xml));
+-
+-        StringWriter buffer = new StringWriter();
+-        HierarchicalStreamWriter destinationWriter = new CompactWriter(buffer);
+-
+-        copier.copy(sourceReader, destinationWriter);
+-
+-        return new XppReader(new StringReader(buffer.toString()), XppFactory.createDefaultParser());
+-    }
+-
+-    public void testSkipsValueIfEmpty() throws XmlPullParserException {
+-        String input = "<root><empty1/><empty2></empty2><not-empty>blah</not-empty></root>";
+-        String expected = "<root><empty1/><empty2/><not-empty>blah</not-empty></root>";
+-        HierarchicalStreamReader sourceReader = new XppReader(
+-            new StringReader(input), XppFactory.createDefaultParser());
+-
+-        StringWriter buffer = new StringWriter();
+-        HierarchicalStreamWriter destinationWriter = new CompactWriter(buffer);
+-
+-        copier.copy(sourceReader, destinationWriter);
+-
+-        assertEquals(expected, buffer.toString());
+-    }
+-
+-    public void testIsXXEVulnerableWithExternalGeneralEntity() throws Exception {
+-        try {
+-            super.testIsXXEVulnerableWithExternalGeneralEntity();
+-            fail("Thrown " + XStreamException.class.getName() + " expected");
+-        } catch (final XStreamException e) {
+-            final String message = e.getCause().getMessage();
+-            if (message.indexOf("resolve entity") < 0) {
+-                throw e;
+-            }
+-        }
+-    }
+-
+-}
+diff --git a/xstream/src/test/com/thoughtworks/xstream/io/xml/MXParserReaderTest.java b/xstream/src/test/com/thoughtworks/xstream/io/xml/MXParserReaderTest.java
+deleted file mode 100644
+index 1f07106..0000000
+--- a/xstream/src/test/com/thoughtworks/xstream/io/xml/MXParserReaderTest.java
++++ /dev/null
+@@ -1,41 +0,0 @@
+-/*
+- * Copyright (C) 2021 XStream Committers.
+- * All rights reserved.
+- *
+- * The software in this package is published under the terms of the BSD
+- * style license a copy of which has been included with this distribution in
+- * the LICENSE.txt file.
+- *
+- * Created on 2. January 2021 by Joerg Schaible
+- */
+-package com.thoughtworks.xstream.io.xml;
+-
+-import com.thoughtworks.xstream.XStreamException;
+-import com.thoughtworks.xstream.io.HierarchicalStreamDriver;
+-import com.thoughtworks.xstream.io.HierarchicalStreamReader;
+-
+-import java.io.StringReader;
+-
+-public class MXParserReaderTest extends AbstractXMLReaderTest {
+-
+-    private HierarchicalStreamDriver driver = new MXParserDriver();
+-
+-    // factory method
+-    protected HierarchicalStreamReader createReader(String xml) throws Exception {
+-        return driver.createReader(new StringReader(xml));
+-    }
+-
+-    public void testIsXXEVulnerableWithExternalGeneralEntity() throws Exception {
+-        try {
+-            super.testIsXXEVulnerableWithExternalGeneralEntity();
+-            fail("Thrown " + XStreamException.class.getName() + " expected");
+-        } catch (final XStreamException e) {
+-            final String message = e.getCause().getMessage();
+-            if (message.indexOf("resolve entity") < 0) {
+-                throw e;
+-            }
+-        }
+-    }
+-
+-    // inherits tests from superclass
+-}

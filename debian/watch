@@ -1,0 +1,2 @@
+version=4
+opts=repack,compression=xz,uversionmangle=s/_/./g https://github.com/x-stream/xstream/tags .*/archive/refs/tags/XSTREAM_([\d_]+).tar.gz
